@@ -6,11 +6,14 @@ import matplotlib.pyplot as plt
 import os
 import random
 import numpy as np
+import json
 from pathlib import Path
+from datasets import Dataset
+from torch.utils.data import DataLoader
 
 from config import config
 from transformer import create_model, count_parameters
-from data_utils import make_translation_loaders_from_dir
+from data_utils import Lang, tokenize, encode_and_pad
 
 def set_seed(seed):
     """재현 가능한 결과를 위한 시드 설정"""
@@ -22,6 +25,101 @@ def set_seed(seed):
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+
+def load_translation_data(data_dir, train_filename, val_filename):
+    """번역 데이터 로드 (main.py 내부용)"""
+    data_dir = Path(data_dir)
+    
+    train_file = data_dir / f"{train_filename}.json"
+    val_file = data_dir / f"{val_filename}.json"
+    
+    if not train_file.exists() or not val_file.exists():
+        raise FileNotFoundError(
+            f"필요한 파일:\n- {train_file}\n- {val_file}"
+        )
+    
+    print(f"훈련 데이터: {train_file}")
+    print(f"검증 데이터: {val_file}")
+    
+    # JSON 파일 로드
+    with open(train_file, 'r', encoding='utf-8') as f:
+        train_data = json.load(f)
+    with open(val_file, 'r', encoding='utf-8') as f:
+        val_data = json.load(f)
+    
+    # data 필드 추출
+    if isinstance(train_data, dict) and 'data' in train_data:
+        train_data = train_data['data']
+    if isinstance(val_data, dict) and 'data' in val_data:
+        val_data = val_data['data']
+    
+    # 딕셔너리 형태로 변환
+    train_dict = {
+        'korean': [item['ko'] for item in train_data],
+        'english': [item['en'] for item in train_data]
+    }
+    val_dict = {
+        'korean': [item['ko'] for item in val_data],
+        'english': [item['en'] for item in val_data]
+    }
+    
+    # datasets.Dataset으로 변환
+    train_dataset = Dataset.from_dict(train_dict)
+    val_dataset = Dataset.from_dict(val_dict)
+    
+    return train_dataset, val_dataset
+
+def build_vocab(dataset, field, min_freq):
+    """어휘 사전 구축"""
+    lang = Lang(name=field, min_freq=min_freq)
+    for ex in dataset:
+        tokens = tokenize(ex[field])
+        if tokens:
+            lang.add_word(tokens)
+    lang.build()
+    return lang
+
+def get_max_length(dataset, field):
+    """최대 길이 계산"""
+    lengths = [len(tokenize(ex[field])) for ex in dataset]
+    return max(lengths) + 2  # SOS, EOS 고려
+
+class TranslationDataset:
+    """간단한 번역 데이터셋"""
+    def __init__(self, dataset, src_lang, tgt_lang, src_max_len, tgt_max_len):
+        self.dataset = dataset
+        self.src_lang = src_lang
+        self.tgt_lang = tgt_lang
+        self.src_max_len = src_max_len
+        self.tgt_max_len = tgt_max_len
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, i):
+        ex = self.dataset[i]
+        
+        # 소스 처리
+        src_tokens = tokenize(ex['korean'])
+        if not src_tokens:
+            src_tokens = ['<UNK>']
+        src_ids = encode_and_pad(src_tokens, self.src_lang, self.src_max_len)
+        
+        # 타겟 처리
+        tgt_tokens = tokenize(ex['english'])
+        if not tgt_tokens:
+            tgt_tokens = ['<UNK>']
+        
+        # <SOS> + tokens + <EOS> 형태
+        tgt_tokens = ['<SOS>'] + tgt_tokens[:self.tgt_max_len - 2] + ['<EOS>']
+        tgt_ids = [self.tgt_lang.word2index.get(t, self.tgt_lang.word2index['<UNK>']) for t in tgt_tokens]
+        tgt_ids += [self.tgt_lang.word2index['<PAD>']] * (self.tgt_max_len - len(tgt_ids))
+        tgt_ids = tgt_ids[:self.tgt_max_len]
+        
+        return {
+            'src_ids': torch.tensor(src_ids, dtype=torch.long),
+            'tgt_ids': torch.tensor(tgt_ids, dtype=torch.long)
+        }
 
 def train_epoch(model, train_loader, optimizer, criterion, device):
     """한 에포크 훈련"""
@@ -35,36 +133,27 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
         src_ids = batch['src_ids'].to(device)
         tgt_ids = batch['tgt_ids'].to(device)
         
-        # Teacher forcing: 입력과 타겟 분리
-        tgt_input = tgt_ids[:, :-1]  # <sos> ~ 마지막 이전까지
-        tgt_output = tgt_ids[:, 1:]  # 첫 번째 다음 ~ <eos>까지
+        # Teacher forcing
+        tgt_input = tgt_ids[:, :-1]
+        tgt_output = tgt_ids[:, 1:]
         
         # Forward pass
         optimizer.zero_grad()
         logits = model(src_ids, tgt_input)
         
-        # Loss 계산 (패딩 토큰 제외)
+        # Loss 계산
         loss = criterion(logits.reshape(-1, logits.size(-1)), tgt_output.reshape(-1))
         
         # Backward pass
         loss.backward()
-        
-        # Gradient clipping
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.MAX_GRAD_NORM)
         optimizer.step()
         
-        # 통계 업데이트
         total_loss += loss.item()
-        
-        # Progress bar 업데이트
         progress_bar.set_postfix({
             'loss': f'{loss.item():.4f}',
             'avg_loss': f'{total_loss / (batch_idx + 1):.4f}'
         })
-        
-        # 주기적 로그 출력
-        if config.VERBOSE and (batch_idx + 1) % config.LOG_INTERVAL == 0:
-            print(f"    Batch {batch_idx + 1}/{num_batches}, Loss: {loss.item():.4f}")
     
     return total_loss / num_batches
 
@@ -72,7 +161,6 @@ def evaluate(model, val_loader, criterion, device):
     """모델 평가"""
     model.eval()
     total_loss = 0
-    num_batches = len(val_loader)
     
     with torch.no_grad():
         progress_bar = tqdm(val_loader, desc="Evaluating", leave=False)
@@ -90,22 +178,19 @@ def evaluate(model, val_loader, criterion, device):
             total_loss += loss.item()
             progress_bar.set_postfix({'loss': f'{loss.item():.4f}'})
     
-    return total_loss / num_batches
+    return total_loss / len(val_loader)
 
 def translate_sample(model, src_text, src_lang, tgt_lang, device):
     """샘플 번역 테스트"""
-    from data_utils import tokenize, encode_and_pad
-    
     model.eval()
     
     try:
         with torch.no_grad():
-            # 소스 문장 토크나이징 및 인코딩
+            # 소스 문장 처리
             src_tokens = tokenize(src_text)
             if not src_tokens:
                 src_tokens = ['<UNK>']
             
-            # 적당한 길이로 인코딩 (128은 일반적인 최대 길이)
             src_ids = encode_and_pad(src_tokens, src_lang, 128)
             src_tensor = torch.tensor([src_ids], device=device)
             
@@ -132,62 +217,38 @@ def translate_sample(model, src_text, src_lang, tgt_lang, device):
     except Exception as e:
         return f"[번역 실패: {str(e)}]"
 
-def run_translation_tests(model, src_lang, tgt_lang, device):
-    """번역 테스트 실행"""
-    print("\n🔍 번역 테스트:")
-    print("-" * 40)
-    
-    for sentence in config.TEST_SENTENCES:
-        translated = translate_sample(model, sentence, src_lang, tgt_lang, device)
-        print(f"  {config.SRC_FIELD}: {sentence}")
-        print(f"  {config.TGT_FIELD}: {translated}")
-        print()
-
-def save_model(model, optimizer, epoch, train_loss, val_loss, src_lang, tgt_lang, filepath):
-    """모델 저장"""
-    torch.save({
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'train_loss': train_loss,
-        'val_loss': val_loss,
-        'src_lang': src_lang,
-        'tgt_lang': tgt_lang,
-        'config': config
-    }, filepath)
-
-def plot_training_progress(train_losses, val_losses, save_path):
-    """훈련 진행 상황 그래프 생성"""
-    if not config.SAVE_PLOTS:
-        return
-    
-    plt.figure(figsize=(12, 6))
-    
-    # Loss 그래프
-    plt.subplot(1, 2, 1)
-    plt.plot(train_losses, label='Train Loss', color='blue', alpha=0.7)
-    plt.plot(val_losses, label='Validation Loss', color='red', alpha=0.7)
+def plot_training_progress(train_losses, val_losses, save_path=None):
+    """훈련 진행 상황 그래프"""
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(val_losses, label='Validation Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.title('Training Progress')
     plt.legend()
-    plt.grid(True, alpha=0.3)
+    plt.grid(True)
     
-    # 최근 에포크 확대 그래프
-    plt.subplot(1, 2, 2)
-    start_epoch = max(0, len(train_losses) - 5)  # 최근 5 에포크
-    epochs = range(start_epoch, len(train_losses))
-    plt.plot(epochs, train_losses[start_epoch:], label='Train Loss', color='blue', alpha=0.7, marker='o')
-    plt.plot(epochs, val_losses[start_epoch:], label='Validation Loss', color='red', alpha=0.7, marker='s')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Recent Training Progress')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
+    if save_path:
+        plt.savefig(save_path)
+        print(f"📊 그래프 저장: {save_path}")
     
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    plt.close()
+    plt.show()
+
+def run_translation_tests(model, src_lang, tgt_lang, device):
+    """번역 테스트 실행"""
+    test_sentences = [
+        "안녕하세요.",
+        "오늘 날씨가 좋습니다.",
+        "저는 학생입니다.",
+        "감사합니다.",
+        "좋은 하루 보내세요."
+    ]
+    
+    for sentence in test_sentences:
+        translated = translate_sample(model, sentence, src_lang, tgt_lang, device)
+        print(f"한국어: {sentence}")
+        print(f"영어: {translated}")
+        print("-" * 40)
 
 def main():
     """메인 훈련 함수"""
@@ -205,32 +266,38 @@ def main():
     print(f"\n🚀 Transformer 번역 모델 훈련 시작!")
     print(f"디바이스: {config.DEVICE}")
     
-    # 데이터 로더 생성
+    # 데이터 로드
     print("\n📚 데이터 로딩 중...")
     try:
-        src_lang, tgt_lang, src_max_len, tgt_max_len, train_loader, val_loader = \
-            make_translation_loaders_from_dir(
-                config.DATA_DIR,
-                train_filename=config.TRAIN_FILENAME,
-                val_filename=config.VALID_FILENAME,
-                src_field=config.SRC_FIELD,
-                tgt_field=config.TGT_FIELD,
-                min_freq=config.MIN_FREQ,
-                batch_size=config.BATCH_SIZE,
-                num_workers=config.NUM_WORKERS
-            )
+        train_dataset, val_dataset = load_translation_data(
+            config.DATA_DIR, config.TRAIN_FILENAME, config.VALID_FILENAME
+        )
+        
+        print(f"훈련 데이터 크기: {len(train_dataset):,}")
+        print(f"검증 데이터 크기: {len(val_dataset):,}")
+        
+        # 어휘 사전 구축
+        print("어휘 사전 구축 중...")
+        src_lang = build_vocab(train_dataset, 'korean', config.MIN_FREQ)
+        tgt_lang = build_vocab(train_dataset, 'english', config.MIN_FREQ)
+        
+        print(f"소스 어휘 사전 크기: {src_lang.n_words:,}")
+        print(f"타겟 어휘 사전 크기: {tgt_lang.n_words:,}")
+        
+        # 최대 길이 계산
+        src_max_len = get_max_length(train_dataset, 'korean')
+        tgt_max_len = get_max_length(train_dataset, 'english')
+        
+        # 데이터셋 및 로더 생성
+        train_ds = TranslationDataset(train_dataset, src_lang, tgt_lang, src_max_len, tgt_max_len)
+        val_ds = TranslationDataset(val_dataset, src_lang, tgt_lang, src_max_len, tgt_max_len)
+        
+        train_loader = DataLoader(train_ds, batch_size=config.BATCH_SIZE, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size=config.BATCH_SIZE, shuffle=False)
+        
     except FileNotFoundError as e:
         print(f"❌ 데이터 로딩 실패: {e}")
-        print("\n📋 필요한 파일:")
-        print(f"- {config.DATA_DIR}/{config.TRAIN_FILENAME}.json")
-        print(f"- {config.DATA_DIR}/{config.VALID_FILENAME}.json")
         return
-    
-    print(f"✅ 데이터 로딩 완료!")
-    print(f"   소스 어휘 사전 크기: {src_lang.n_words:,}")
-    print(f"   타겟 어휘 사전 크기: {tgt_lang.n_words:,}")
-    print(f"   훈련 배치 수: {len(train_loader):,}")
-    print(f"   검증 배치 수: {len(val_loader):,}")
     
     # 모델 생성
     print("\n🏗️ 모델 생성 중...")
@@ -246,79 +313,59 @@ def main():
     )
     
     model = model.to(config.DEVICE)
+    print(f"모델 매개변수 수: {count_parameters(model):,}")
     
-    total_params = count_parameters(model)
-    print(f"✅ 모델 생성 완료!")
-    print(f"   총 매개변수 수: {total_params:,}")
-    print(f"   모델 크기: ~{total_params * 4 / 1024 / 1024:.1f} MB")
-    
-    # Loss function & Optimizer
+    # Loss & Optimizer
     criterion = nn.CrossEntropyLoss(ignore_index=tgt_lang.word2index['<PAD>'])
-    optimizer = optim.AdamW(
-        model.parameters(), 
-        lr=config.LEARNING_RATE,
-        weight_decay=config.WEIGHT_DECAY,
-        betas=config.BETAS,
-        eps=config.EPS
-    )
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, 
-        patience=config.SCHEDULER_PATIENCE, 
-        factor=config.SCHEDULER_FACTOR,
-        verbose=True
-    )
+    optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=2, factor=0.5)
     
     # 훈련 루프
     print(f"\n🔥 훈련 시작! ({config.NUM_EPOCHS} 에포크)")
-    print("=" * 60)
     
     train_losses = []
     val_losses = []
     best_val_loss = float('inf')
     
     for epoch in range(config.NUM_EPOCHS):
-        epoch_start_msg = f"📊 Epoch {epoch + 1}/{config.NUM_EPOCHS}"
-        print(f"\n{epoch_start_msg}")
-        print("-" * len(epoch_start_msg))
+        print(f"\n📊 Epoch {epoch + 1}/{config.NUM_EPOCHS}")
         
         # 훈련
         train_loss = train_epoch(model, train_loader, optimizer, criterion, config.DEVICE)
         train_losses.append(train_loss)
         
         # 평가
-        if (epoch + 1) % config.EVAL_EVERY == 0:
-            val_loss = evaluate(model, val_loader, criterion, config.DEVICE)
-            val_losses.append(val_loss)
-        else:
-            val_loss = val_losses[-1] if val_losses else float('inf')
+        val_loss = evaluate(model, val_loader, criterion, config.DEVICE)
+        val_losses.append(val_loss)
         
-        # 학습률 스케줄러 업데이트
+        # 스케줄러 업데이트
         scheduler.step(val_loss)
-        current_lr = optimizer.param_groups[0]['lr']
         
-        # 결과 출력
-        print(f"✅ Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | LR: {current_lr:.2e}")
+        print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
         
         # 최고 성능 모델 저장
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            best_model_path = save_dir / "best_model.pt"
-            save_model(model, optimizer, epoch, train_loss, val_loss, src_lang, tgt_lang, best_model_path)
-            print(f"💾 최고 성능 모델 저장! (Val Loss: {val_loss:.4f})")
-        
-        # 주기적 모델 저장
-        if (epoch + 1) % config.SAVE_EVERY == 0:
-            checkpoint_path = save_dir / f"model_epoch_{epoch + 1}.pt"
-            save_model(model, optimizer, epoch, train_loss, val_loss, src_lang, tgt_lang, checkpoint_path)
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'train_loss': train_loss,
+                'val_loss': val_loss,
+                'src_lang': src_lang,
+                'tgt_lang': tgt_lang,
+                'config': config
+            }, save_dir / 'best_model.pt')
+            print("💾 최고 성능 모델 저장!")
         
         # 번역 테스트
         if (epoch + 1) % config.TRANSLATE_EVERY == 0:
-            run_translation_tests(model, src_lang, tgt_lang, config.DEVICE)
-        
-        # 훈련 그래프 업데이트
-        if config.SAVE_PLOTS and len(val_losses) > 0:
-            plot_path = save_dir / "training_progress.png"
-            plot_training_progress(train_losses, val_losses, plot_path)
+            print("\n🔍 번역 테스트:")
+            for sentence in config.TEST_SENTENCES[:3]:  # 처음 3개만
+                translated = translate_sample(model, sentence, src_lang, tgt_lang, config.DEVICE)
+                print(f"  한국어: {sentence}")
+                print(f"  영어: {translated}")
+                print()
     
     # 훈련 완료
     print("\n" + "=" * 60)
@@ -332,10 +379,8 @@ def main():
     run_translation_tests(model, src_lang, tgt_lang, config.DEVICE)
     
     # 최종 그래프 저장
-    if config.SAVE_PLOTS:
-        final_plot_path = save_dir / "final_training_progress.png"
-        plot_training_progress(train_losses, val_losses, final_plot_path)
-        print(f"📊 훈련 그래프 저장: {final_plot_path}")
+    plot_path = save_dir / "training_progress.png"
+    plot_training_progress(train_losses, val_losses, plot_path)
     
     print(f"\n✅ 모든 작업 완료! 🎊")
 
