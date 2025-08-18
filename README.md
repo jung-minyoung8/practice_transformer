@@ -76,7 +76,8 @@ python main.py
 → `BATCH_SIZE`를 줄이거나 DEVICE="cpu"로 변경
 
 `ModuleNotFoundError`
-→ 가상환경 활성화 후 pip install -r requirements.txt 재확인
-→ torch는 별도 인덱스로 설치했는지 확인
+→ 가상환경 활성화 후 `pip install -r requirements.txt` 재확인
+→ `torch`는 별도 인덱스로 설치했는지 확인
+
 
 
