@@ -49,9 +49,11 @@ The dataset construction is based on the method noted in [Large movie review dat
 python encoder_train.py -d ./nsmc
 ```
 `-d`: directory
+
 2) LSTM 모델
 ```
 python lstm_train.py -d ./nsmc
 ```
 `-d`: directory
+
 
