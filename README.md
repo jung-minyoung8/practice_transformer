@@ -65,7 +65,7 @@ python lstm_train.py -d ./nsmc
 python main.py
 ```
 - 실행 시 `config.py` 내용을 출력합니다.
-- [데이터 로드] → [어휘 사전 구축] → [학습/검증] → [체크포인트 저장] → [샘플 번역 테스트] → [학습 곡선 저장(`training_progress.png`)]순으로 진행합니다.
+- [데이터 로드] → [어휘 사전 구축] → [학습/검증] → [체크포인트 저장] → [샘플 번역 테스트] → [학습 곡선 저장(`training_progress.png`)]<br>순으로 진행합니다.
 
 ### 자주 발생하는 이슈
 
@@ -78,4 +78,5 @@ python main.py
 `ModuleNotFoundError`
 → 가상환경 활성화 후 pip install -r requirements.txt 재확인
 → torch는 별도 인덱스로 설치했는지 확인
+
 
