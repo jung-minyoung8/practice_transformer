@@ -28,8 +28,8 @@ Transformer Encoder-Only 구조(Classifier) 와 LSTM 모델을 각각 학습 및
 
 ### 데이터셋
 
-이 프로젝트에서는 `Naver sentiment movie corpus v1.0`를 사용했습니다.
-Reviews were scraped from [Naver Movies](http://movie.naver.com/movie/point/af/list.nhn).
+이 프로젝트에서는 `Naver sentiment movie corpus v1.0`를 사용했습니다.<br>
+Reviews were scraped from [Naver Movies](http://movie.naver.com/movie/point/af/list.nhn).<br>
 The dataset construction is based on the method noted in [Large movie review dataset](http://ai.stanford.edu/~amaas/data/sentiment/) from Maas et al., 2011.
 
 #### 데이터 설명
@@ -42,3 +42,15 @@ The dataset construction is based on the method noted in [Large movie review dat
   - `ratings.txt`: 전체 200,000개 리뷰
   - `ratings_train.txt`: 학습용 150,000개 리뷰
   - `ratings_test.txt`: 테스트용 50,000개 리뷰
+
+### 실행 방법
+1) Encoder-Only 모델 (Transformer Classifier)
+```
+python encoder_train.py -d ./nsmc
+```
+`-d`: directory
+2) LSTM 모델
+```
+python lstm_train.py -d ./nsmc
+```
+`-d`: directory
