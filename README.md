@@ -1,4 +1,5 @@
 # practice_transformer
+Transformer 구조를 직접 구현하고 실습하며, 그 동작 원리를 이해하는 것을 목표로 하는 학습용 프로젝트입니다.
 
 ## 환경 구성 파이프라인
 Python 버전
@@ -56,4 +57,24 @@ python lstm_train.py -d ./nsmc
 ```
 `-d`: directory
 
+---
+## Transformer 모델 구현
+이 섹션(번역): Encoder+Decoder 구조, [입력(ko)] → [출력(en)] 시퀀스 생성 과제
+### 실행 방법
+```
+python main.py
+```
+- 실행 시 `config.py` 내용을 출력합니다.
+- [데이터 로드] → [어휘 사전 구축] → [학습/검증] → [체크포인트 저장] → [샘플 번역 테스트] → [학습 곡선 저장(`training_progress.png`)]순으로 진행합니다.
 
+### 자주 발생하는 이슈
+
+`데이터 로딩 실패: FileNotFoundError`
+→ `data/`에 train, valid가 세트로 존재해야 합니다.(중요: 파일 형식은 `.json`만 지원합니다.)
+
+`CUDA out of memory`
+→ `BATCH_SIZE`를 줄이거나 DEVICE="cpu"로 변경
+
+`ModuleNotFoundError`
+→ 가상환경 활성화 후 pip install -r requirements.txt 재확인
+→ torch는 별도 인덱스로 설치했는지 확인
