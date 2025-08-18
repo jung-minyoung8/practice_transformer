@@ -90,7 +90,7 @@ def main():
     parser = argparse.ArgumentParser(description='Original Transformer Training')
     parser.add_argument('-d', '--data_dir', type=str, required=True, help='데이터 디렉토리')
     parser.add_argument('--batch_size', type=int, default=16, help='배치 크기')
-    parser.add_argument('--epochs', type=int, default=3, help='에포크 수')
+    parser.add_argument('--epochs', type=int, default=10, help='에포크 수')
     parser.add_argument('--lr', type=float, default=0.0001, help='학습률')
     parser.add_argument('--d_model', type=int, default=64, help='모델 차원')
     parser.add_argument('--num_heads', type=int, default=8, help='어텐션 헤드 수')
