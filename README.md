@@ -23,7 +23,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cu121
 
 NSMC 기반 텍스트 분류 프로젝트
 
-이 프로젝트는 **네이버 영화 리뷰 감성 분석(NSMC, Naver Sentiment Movie Corpus v1.0)**을 활용하여,<br>
+이 프로젝트는 `네이버 영화 리뷰 감성 분석(NSMC, Naver Sentiment Movie Corpus v1.0)`을 활용하여,<br>
 Transformer Encoder-Only 구조(Classifier) 와 LSTM 모델을 각각 학습 및 비교하는 실험을 수행합니다.
 
 ### 데이터셋
@@ -54,3 +54,4 @@ python encoder_train.py -d ./nsmc
 python lstm_train.py -d ./nsmc
 ```
 `-d`: directory
+
