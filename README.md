@@ -70,7 +70,7 @@ python main.py
 ### 자주 발생하는 이슈
 
 `데이터 로딩 실패: FileNotFoundError`
-→ `data/`에 train, valid가 세트로 존재해야 합니다.(중요: 파일 형식은 `.json`만 지원합니다.)
+→ `data/`에 train, valid가 세트로 존재해야 합니다.<br>(중요: 파일 형식은 `.json`만 지원합니다.)
 
 `CUDA out of memory`
 → `BATCH_SIZE`를 줄이거나 DEVICE="cpu"로 변경
@@ -78,3 +78,4 @@ python main.py
 `ModuleNotFoundError`
 → 가상환경 활성화 후 pip install -r requirements.txt 재확인
 → torch는 별도 인덱스로 설치했는지 확인
+
