@@ -55,4 +55,5 @@ flowchart TD
     style Encoder fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
     style Decoder fill:#fff3e0,stroke:#f57c00,stroke-width:3px
     style Model fill:#f5f5f5,stroke:#424242,stroke-width:3px
+    
 ---
