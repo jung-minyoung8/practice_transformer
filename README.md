@@ -1,6 +1,6 @@
 # practice_transformer
 Transformer 구조를 직접 구현하고 실습하며, 그 동작 원리를 이해하는 것을 목표로 하는 학습용 프로젝트입니다.
-
+- [Notion: Transformer Study Log](https://www.notion.so/Transformer-2262d05d9c4680de8371fc72ee3c87dd?source=copy_link)
 본 프로젝트는 `Attention Is All You Need` 논문을 기반으로 하여,
 Transformer 모델의 핵심 구조(`Embedding`, `Multi-Head Attention`, `Position-wise FFN`, `Encoder/Decoder` 스택 등)를
 직접 코드로 옮기고 실험하는 데 초점을 두고 있습니다.
@@ -78,3 +78,4 @@ flowchart TD
 - 최종 출력: `[batch, tgt_len, d_model] -> Linear layer -> [batch, tgt_len, vocab_size]`
 
 ---
+## 
