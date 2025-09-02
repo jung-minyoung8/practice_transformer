@@ -16,6 +16,7 @@ Transformer 모델의 핵심 구조(`Embedding`, `Multi-Head Attention`, `Positi
 - Auto-regressive `generate` 함수 (추론용)
 
 ## 코드 구조
+```
 flowchart TD
     subgraph Encoder["Encoder (stacked N=6)"]
         E1["Multi-Head Self-Attention"] --> EN1["Add & Norm"]
