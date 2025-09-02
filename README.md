@@ -56,5 +56,25 @@ flowchart TD
     style TGT fill:#fce4ec,stroke:#c2185b,stroke-width:2px
     style PROJ fill:#fff8e1,stroke:#ffa000,stroke-width:2px
 ```
+### Source
+- 번역하려는 문장의 입력
+- [단어 ID] -> [Token Embedding + Positional Encoding]
+- Encoder에 들어가서 문장 전체의 의미를 압축한 표현(context vector)을 생성
+
+### Encoder
+- 입력 문장 전체를 동시에 처리(Self-Attention)
+- 단어 간 관계를 반영하여 풍부한 표현을 학습
+- 최종적으로 `[batch, src_len, d_model]` 형태의 시퀀스 표현을 출력
+
+### Target
+- 번역하려는 목표 언어 문장의 입력
+- 훈련 시: 정답 문장을 한 토큰씩 밀어 넣음
+- 추론 시: 이미 생성된 단어들을 다시 입력으로 사용해 다음 단어를 예측
+
+### Decoder
+- `Masked Multi-Head Self-Attention`: 미래 단어를 보지 않도록 causal mask 적용
+- `Cross-Attention`: Encoder의 context vector를 참조해 Source–Target 매핑 학습
+- `FFN + Add&Norm`: 각 단계별 표현 정제
+- 최종 출력: `[batch, tgt_len, d_model] -> Linear layer -> [batch, tgt_len, vocab_size]`
 
 ---
