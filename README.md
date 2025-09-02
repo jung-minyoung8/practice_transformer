@@ -37,23 +37,18 @@ flowchart TD
     end
     
     %% 스타일링
-    classDef encoderBox fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
-    classDef decoderBox fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
-    classDef attentionBox fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
-    classDef normBox fill:#e8f5e8,stroke:#388e3c,stroke-width:2px,color:#000
-    classDef embeddingBox fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
-    classDef projectionBox fill:#fff8e1,stroke:#ffa000,stroke-width:2px,color:#000
+    style E1 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style D1 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style D2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style EN1 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style EN2 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style DN1 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style DN2 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style DN3 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style E2 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style D3 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style SRC fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style TGT fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style PROJ fill:#fff8e1,stroke:#ffa000,stroke-width:2px
     
-    %% 클래스 적용
-    class E1,D1,D2 attentionBox
-    class EN1,EN2,DN1,DN2,DN3 normBox
-    class E2,D3 encoderBox
-    class SRC,TGT embeddingBox
-    class PROJ projectionBox
-    
-    %% 서브그래프 스타일링
-    style Encoder fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-    style Decoder fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-    style Model fill:#f5f5f5,stroke:#424242,stroke-width:3px
-
 ---
