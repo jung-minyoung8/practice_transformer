@@ -9,11 +9,10 @@ Transformer 모델의 핵심 구조(`Embedding`, `Multi-Head Attention`, `Positi
 ---
 
 ## 구현 초점
-- Encoder / Decoder 모듈 (Multi-Head Attention, Feed-Forward Network, Residual + LayerNorm)
-- Positional Encoding (sinusoidal)
-- Causal Mask (look-ahead mask for autoregressive decoding)
-- Padding Mask
-- Auto-regressive `generate` 함수 (추론용)
+- `Encoder / Decoder 모듈` (`Multi-Head Attention`, `Feed-Forward Network(FFN)`, `ADD&LayerNorm`)
+- `Positional Encoding` (sinusoidal)
+- `Causal Mask` (look-ahead mask for autoregressive decoding)
+- `Padding Mask`
 
 ## 코드 구조
 ```mermaid
