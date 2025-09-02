@@ -18,25 +18,31 @@ Transformer 모델의 핵심 구조(`Embedding`, `Multi-Head Attention`, `Positi
 ## 코드 구조
 ```mermaid
 flowchart TD
-    subgraph Encoder["Encoder (stacked N=6)"]
+    %% Nodes outside subgraphs
+    SRC["Source Embedding + Positional Encoding"]
+    TGT["Target Embedding + Positional Encoding"]
+    PROJ["Linear Projection -> Softmax"]
+
+    %% Encoder
+    subgraph ENC["Encoder (stacked N=6)"]
         E1["Multi-Head Self-Attention"] --> EN1["Add & Norm"]
         EN1 --> E2["Feed Forward"] --> EN2["Add & Norm"]
     end
-    
-    subgraph Decoder["Decoder (stacked N=6)"]
+
+    %% Decoder
+    subgraph DEC["Decoder (stacked N=6)"]
         D1["Masked Multi-Head Self-Attention"] --> DN1["Add & Norm"]
         DN1 --> D2["Cross-Attention (Encoder-Decoder)"] --> DN2["Add & Norm"]
         DN2 --> D3["Feed Forward"] --> DN3["Add & Norm"]
     end
-    
-    subgraph Model["Transformer"]
-        SRC["Source Embedding + Positional Encoding"] --> Encoder
-        Encoder --> Decoder
-        TGT["Target Embedding + Positional Encoding"] --> Decoder
-        Decoder --> PROJ["Linear Projection → Softmax"]
-    end
-    
-    %% 스타일링
+
+    %% Model-level wiring
+    SRC --> ENC
+    ENC --> DEC
+    TGT --> DEC
+    DEC --> PROJ
+
+    %% Styling
     style E1 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
     style D1 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
     style D2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
@@ -50,5 +56,6 @@ flowchart TD
     style SRC fill:#fce4ec,stroke:#c2185b,stroke-width:2px
     style TGT fill:#fce4ec,stroke:#c2185b,stroke-width:2px
     style PROJ fill:#fff8e1,stroke:#ffa000,stroke-width:2px
-    
+```
+
 ---
